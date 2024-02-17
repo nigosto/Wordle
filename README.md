@@ -1,5 +1,5 @@
 # Wordle
-Console app written in Haskell that simulates the famous game Wordle and extending it with different game modes. This is my course project for the Functional Programming course at Sofia University.
+Console app written in Haskell that simulates the famous game Wordle and extending it with different game modes.
 
 ## Table of contents
 - [Prerequisites](#prerequisites)
@@ -19,7 +19,10 @@ Running the project using `cabal`:
 cabal run
 ```
 
-If you want to use custom word list, you need to change the contents of `assets/wordlist.txt`.
+Or if you want to run it in REPL:
+```shell
+cabal repl
+```
 
 ## Installing the executable manually
 If you want to install the executable yourselves, then you need to run the following command:
@@ -34,6 +37,7 @@ TODO
 
 ## License
 The project is licensed under the MIT License. See the [LICENSE](./LICENSE) file for more information.
+
 ## Contacts
 - GitHub: https://github.com/nigosto
 - LinkedIn: https://www.linkedin.com/in/georgi-n-atanasov
