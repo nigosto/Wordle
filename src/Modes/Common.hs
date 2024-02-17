@@ -1,14 +1,15 @@
 module Modes.Common where
 
 import System.Exit (exitSuccess)
+import Colors.Common (Color)
 
-type LetterInfo = (Char, String, Int)
+type LetterInfo = (Char, Color, Int)
 type Guess = [LetterInfo]
 
 letter :: LetterInfo -> Char
 letter (l, _, _) = l
 
-color :: LetterInfo -> String
+color :: LetterInfo -> Color
 color (_, c, _) = c
 
 position :: LetterInfo -> Int

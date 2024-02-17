@@ -1,10 +1,12 @@
 module Modes.Helper where
 
+import Data.Maybe (isNothing)
 import Data.List (maximumBy)
 import System.Random (newStdGen)
 import Modes.Common (Guess, color, position, letter, outputWinMessage)
-import Colors (findColors)
+import Colors.Colors (findColors)
 import Utils (makeSet, generateRandomNumber)
+import Colors.Common (Color (Green, Yellow, Gray), parseColor)
 
 {--
 - if the number of unique letters is equal to the number of letters in the secret word, then remove the word if it doesn't contain all of the letters
@@ -14,41 +16,42 @@ import Utils (makeSet, generateRandomNumber)
 --}
 shouldRemoveWord :: [Guess] -> String -> Bool
 shouldRemoveWord previousGuesses word =
-  let green = makeSet $ filter (\x -> color x == "green") $ concat previousGuesses
-      gray = makeSet $ filter (\x -> color x == "gray") $ concat previousGuesses
-      yellow = makeSet $ filter (\x -> color x == "yellow" && x `notElem` green) $ concat previousGuesses
+  let green = makeSet $ filter (\x -> color x == Green) $ concat previousGuesses
+      gray = makeSet $ filter (\x -> color x == Gray) $ concat previousGuesses
+      yellow = makeSet $ filter (\x -> color x == Yellow && x `notElem` green) $ concat previousGuesses
       areAllLettersFound = (not . null) previousGuesses && (length . head) previousGuesses == (length . makeSet . map letter) (green ++ yellow)
    in (areAllLettersFound && any (\x -> x `notElem` (makeSet . map letter) (green ++ yellow)) word)
         || any (`elem` (makeSet . map letter) gray) word
-        || any (\x -> word !! (position x - 1) /= letter x) green
+        || any (\x -> (word !! position x) /= letter x) green
         || any (\x -> letter x `notElem` word) yellow
 
-countRemovedWords :: String -> [String] -> String -> [Guess] -> Int
-countRemovedWords currentWord words secretWord previousGuesses =
+countRemovedWords :: String -> String -> [Guess] -> [String] -> Int
+countRemovedWords currentWord secretWord previousGuesses =
   let answer = findColors secretWord currentWord
-   in length $ filter (shouldRemoveWord (answer : previousGuesses)) words
+   in length . filter (shouldRemoveWord (answer : previousGuesses))
 
-sumRemovedWords :: String -> [String] -> [Guess] -> Int
+sumRemovedWords :: String -> [Guess] -> [String] -> Int
 sumRemovedWords "" _ _ = 0
-sumRemovedWords currentWord words previousGuesses = sum $ map (\w -> countRemovedWords currentWord words w previousGuesses) words--foldl (\res w -> res + countRemovedWords currentWord words w previousGuesses) 0 words
+sumRemovedWords currentWord previousGuesses words = sum $ map (\w -> countRemovedWords currentWord w previousGuesses words) words
 
 -- the check for empty words is required for other functions
-findBestWord :: [String] -> [Guess] -> String
+findBestWord :: [Guess] -> [String] -> String
 findBestWord [] _ = ""
-findBestWord words previousGuesses = maximumBy (\ w1 w2 -> compare (sumRemovedWords w1 words previousGuesses) (sumRemovedWords w1 words previousGuesses)) words 
+findBestWord previousGuesses words = maximumBy (\ w1 w2 -> compare (sumRemovedWords w1 previousGuesses words) (sumRemovedWords w1 previousGuesses words)) words
 
 toGuess :: String -> [String] -> Int -> Guess
 toGuess [] _ _ = []
-toGuess (x : xs) (y : ys) index = (x, y, index) : toGuess xs ys (index + 1)
+toGuess (x : xs) (y : ys) index = case parseColor y of
+                                  Just color -> (x, color, index) : toGuess xs ys (index + 1)
+                                  Nothing -> error "Invalid color"
 
 inputColors :: IO [String]
 inputColors = do
   putStr "Please enter list of colors: "
-  colors <- getLine
-  let colorList = words colors
-  if any (\x -> x /= "green" && x /= "gray" && x /= "yellow") colorList
-    then putStrLn "Unrecognized colors! Try again!" >> inputColors
-    else return colorList
+  colorList <- words <$> getLine
+  if any (isNothing . parseColor) colorList
+  then putStrLn "Unrecognized colors! Try again!" >> inputColors
+  else return colorList
 
 {--
 - The first word is always random word with all different letters (or else the first word will always be the same which is boring)
@@ -63,21 +66,19 @@ chooseWordNormal [] words start = do
   generator <- newStdGen
   let wordsWithDifferentLetters = filter (\x -> length (makeSet x) == length x) words
       word = wordsWithDifferentLetters !! generateRandomNumber generator 0 (length wordsWithDifferentLetters - 1)
-  putStrLn word
-  colorList <- inputColors
-  let guess = toGuess word colorList 1
-  if all (\x -> color x == "green") guess
+  colorList <- putStrLn word >> inputColors
+  let guess = toGuess word colorList 0
+  if all (\x -> color x == Green) guess
     then outputWinMessage "Hooray! I found the word!" start
     else chooseWordNormal [guess] (filter (\x -> not (shouldRemoveWord [guess] x) && x /= word) words) start
 
 chooseWordNormal _ [] _ = putStrLn "Your word is not part of the word list! Ending current session!"
 
 chooseWordNormal previousGuesses words start = do
-  let word = findBestWord words previousGuesses
-  putStrLn word
-  colorList <- inputColors
-  let guess = toGuess word colorList 1
-  if all (\x -> color x == "green") guess
+  let word = findBestWord previousGuesses words
+  colorList <- putStrLn word >> inputColors
+  let guess = toGuess word colorList 0
+  if all (\x -> color x == Green) guess
     then outputWinMessage "Hooray! I found the word!" start
     else chooseWordNormal (guess : previousGuesses) (filter (\x -> not (shouldRemoveWord (guess : previousGuesses) x) && x /= word) words) start
 
@@ -93,10 +94,9 @@ chooseWordHard [] listsOfWords start = do
   generator <- newStdGen
   let wordsWithDifferentLetters = filter (\x -> length (makeSet x) == length x) $ head listsOfWords
       word = wordsWithDifferentLetters !! generateRandomNumber generator 0 (length wordsWithDifferentLetters - 1)
-  putStrLn word
-  colorList <- inputColors
-  let guess = toGuess word colorList 1
-  if all (\x -> color x == "green") guess
+  colorList <- putStrLn word >> inputColors
+  let guess = toGuess word colorList 0
+  if all (\x -> color x == Green) guess
     then outputWinMessage "Hooray! I found the word!" start
     else chooseWordHard [[guess], []] (filter (\x -> not (shouldRemoveWord [guess] x) && x /= word) (head listsOfWords) : listsOfWords) start
 
@@ -109,14 +109,13 @@ chooseWordHard previousGuesses listsOfWords start = do
     then putStrLn "Your word is not part of the word list! Ending current session!"
     else do
       let states = zip previousGuesses listsOfWords
-          words = map (\(guesses, wordList) -> findBestWord wordList guesses) $ filter (\(guesses, _) -> not $ null guesses) states
-          bestWord = maximumBy (\w1 w2 -> compare (sum $ map (\(guesses, wordList) -> sumRemovedWords w1 wordList guesses) states)
-                                                  (sum $ map (\(guesses, wordList) -> sumRemovedWords w2 wordList guesses) states))
-                     $ filter (/= "") words
-      putStrLn bestWord
-      colorList <- inputColors
-      let guess = toGuess bestWord colorList 1
-      if all (\x -> color x == "green") guess
+          words = map (uncurry findBestWord) $ filter (not . null . fst) states
+          bestWord = maximumBy (\w1 w2 -> compare (sum $ map (uncurry $ sumRemovedWords w1) states)
+                                                  (sum $ map (uncurry $ sumRemovedWords w2) states))
+                     $ filter (not. null) words
+      colorList <- putStrLn bestWord >> inputColors
+      let guess = toGuess bestWord colorList 0
+      if all (\x -> color x == Green) guess
         then outputWinMessage "Hooray! I found the word!" start
         else chooseWordHard ((guess:head previousGuesses) :
                               head previousGuesses :

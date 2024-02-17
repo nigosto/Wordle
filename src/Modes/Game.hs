@@ -2,22 +2,26 @@ module Modes.Game where
 
 import Control.Monad (when, unless)
 import System.Random (newStdGen)
-import Modes.Common (Guess, color, letter, outputWinMessage)
-import Colors (findColors, findWrongColors)
+import Modes.Common (Guess, LetterInfo, color, letter, outputWinMessage)
+import Colors.Common (Color (Green, Yellow, Gray))
+import Colors.Colors (findColors, findWrongColors)
 import Utils (generateRandomNumber, makeSet)
 
 validateWord :: Guess -> [Guess] -> IO ()
 validateWord guess previousGuesses = do
   when
-    (any (\x -> color x == "gray" && any (\y -> color x == color y && letter x == letter y) (concat previousGuesses)) guess)
-    (putStrLn "Your guess contains grey letters that have been eliminated already")
-  let yellows = foldl (\acc y -> if color y == "yellow" && all (\x -> (letter y, "green", x) `notElem` concat previousGuesses) [1 .. (length guess)] then y : acc else acc) [] (concat previousGuesses)
+    (any (\x -> color x == Gray && any (\y -> color y == Gray && letter x == letter y) allGuesses) guess) $
+    putStrLn "Your guess contains grey letters that have been eliminated already"
+  let yellows = filter (\ y -> color y == Yellow && checkIfLetterIsFoundAsGreen (letter y)) allGuesses
+  unless (all (\x -> any (\y -> color y == Yellow && letter x == letter y) guess) yellows) $
+    putStrLn "Your guess is missing some of the yellow letters that have been found already"
   when
-    (any (\x -> not (any (\y -> (color y == "yellow" || color y == "green") && letter x == letter y) guess)) yellows)
-    (putStrLn "Your guess is missing some of the yellow letters that have been found already")
-  when
-    (any (`notElem` guess) $ makeSet $ foldl (\acc y -> if color y == "green" then y : acc else acc) [] (concat previousGuesses))
-    (putStrLn "Your guess has non green letter in a position, where a green letter was found")
+    (any (`notElem` guess) $ makeSet $ filter ((== Green) . color) allGuesses) $
+    putStrLn "Your guess has non green letter in a position, where a green letter was found"
+  where checkIfLetterIsFoundAsGreen :: Char -> Bool
+        checkIfLetterIsFoundAsGreen letter = all (\x -> (letter, Green, x) `notElem` allGuesses) [1 .. (length guess - 1)]
+        allGuesses :: [LetterInfo]
+        allGuesses = concat previousGuesses
 
 checkWordLength :: String -> String -> IO () -> IO ()
 checkWordLength guess secretWord =
@@ -43,21 +47,18 @@ askForWordEasy secretWord previousGuesses words start = do
 
 askForWordNormal :: String -> [String] -> IO () -> IO ()
 askForWordNormal secretWord words start = do
-  putStr "Enter your guess: "
-  guess <- getLine
+  guess <- putStr "Enter your guess: " >> getLine
   checkWordLength guess secretWord (askForWordNormal secretWord words start)
   if guess == secretWord
     then outputWinMessage "Congratulations! You guessed the word!" start
     else do
       checkIfWordExists guess words (askForWordNormal secretWord words start)
-      let result = map color $ findColors secretWord guess
-      print result
+      print $ map color $ findColors secretWord guess
       askForWordNormal secretWord words start
 
 askForWordHard :: String -> [Guess] -> Bool -> [String] -> IO () -> IO ()
 askForWordHard secretWord previousGuesses hasLied words start = do
-  putStr "Enter your guess: "
-  guess <- getLine
+  guess <- putStr "Enter your guess: " >> getLine
   checkWordLength guess secretWord (askForWordHard secretWord previousGuesses hasLied words start)
   generator <- newStdGen
   if guess == secretWord
@@ -67,11 +68,8 @@ askForWordHard secretWord previousGuesses hasLied words start = do
       let willLie = not hasLied && 20 >= generateRandomNumber generator 0 100
       if willLie
         then do
-          colorGenerator <- newStdGen
-          let result = findWrongColors secretWord guess previousGuesses colorGenerator
-          print $ map color result
+          newStdGen >>= print . map color . findWrongColors secretWord guess previousGuesses
           askForWordHard secretWord previousGuesses True words start
         else do
-          let result = map color $ findColors secretWord guess
-          print result
+          print $ map color $ findColors secretWord guess
           askForWordHard secretWord (findColors secretWord guess : previousGuesses) hasLied words start
