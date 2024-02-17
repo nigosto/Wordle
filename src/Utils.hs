@@ -19,5 +19,5 @@ elemIndex e list = elemIndexIter e list 0
             | e == x = Just index
             | otherwise = elemIndexIter e xs (index + 1)
 
-generateRandomNumber :: RandomGen a => a -> Int -> Int -> Int
-generateRandomNumber generator from to = fst $ randomR (from, to) generator
+generateRandomNumber :: RandomGen a => Int -> Int -> a -> Int
+generateRandomNumber from to = fst . randomR (from, to)

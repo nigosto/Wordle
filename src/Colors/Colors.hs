@@ -7,10 +7,10 @@ import Modes.Common (Guess, LetterInfo, letter)
 import Utils (makeSet, elemIndex)
 
 generateRandomColor :: RandomGen a => a -> Int -> Color
-generateRandomColor generator =
-  toEnum . generateRandomNumberList generator 0 2
+generateRandomColor =
+  (.) toEnum . generateRandomNumberList 0 2
   where
-    generateRandomNumberList generator from to index = randomRs (from, to) generator !! index
+    generateRandomNumberList from to = (.) (!!) (randomRs (from, to))
 
 mapLetterToColor :: String -> Char -> Int -> LetterInfo
 mapLetterToColor secretWord letter index
@@ -29,5 +29,4 @@ findWrongColors secretWord guess previousGuesses generator =
           findWrongLettersColors secretWord (x:xs) index count
             | x `elem` previousLetters = mapLetterToColor secretWord x index : findWrongLettersColors secretWord xs (index + 1) count
             | otherwise = (x, generateRandomColor generator count, index) : findWrongLettersColors secretWord xs (index + 1) (count + 1)
-          previousLetters :: String
           previousLetters = makeSet $ map letter $ concat previousGuesses

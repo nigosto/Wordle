@@ -17,6 +17,5 @@ position (_, _, p) = p
 
 outputWinMessage :: String -> IO () -> IO ()
 outputWinMessage message start = do
-  putStrLn message >> putStr "Would you like to play again (y/n): "
-  answer <- getLine 
+  answer <- putStrLn message >> putStr "Would you like to play again (y/n): " >> getLine
   if answer == "y" || answer == "yes" then start else exitSuccess

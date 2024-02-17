@@ -1,49 +1,60 @@
 module Modes.Helper where
 
+import Control.Arrow ((&&&))
 import Data.Maybe (isNothing)
 import Data.List (maximumBy)
-import System.Random (newStdGen)
+import System.Random (newStdGen, RandomGen)
 import Modes.Common (Guess, color, position, letter, outputWinMessage)
 import Colors.Colors (findColors)
 import Utils (makeSet, generateRandomNumber)
 import Colors.Common (Color (Green, Yellow, Gray), parseColor)
 
+type GameState = ([Guess], [String])
+
+statesGuesses :: [GameState] -> [[Guess]]
+statesGuesses = map fst
+
+statesWords :: [GameState] -> [[String]]
+statesWords = map snd
+
 {--
-- if the number of unique letters is equal to the number of letters in the secret word, then remove the word if it doesn't contain all of the letters
+- if the number of unique letters is equal to the number of letters in the secret word,
+  then remove the word if it doesn't contain all of the letters
 - if the word contains gray letter, remove it
 - if the word doesn't contain green letter at the right position, remove it
 - if the word doesn't contain yellow letter, remove it
 --}
 shouldRemoveWord :: [Guess] -> String -> Bool
 shouldRemoveWord previousGuesses word =
-  let green = makeSet $ filter (\x -> color x == Green) $ concat previousGuesses
-      gray = makeSet $ filter (\x -> color x == Gray) $ concat previousGuesses
-      yellow = makeSet $ filter (\x -> color x == Yellow && x `notElem` green) $ concat previousGuesses
+  let green = makeSet $ filter ((== Green) . color) $ concat previousGuesses
+      gray = makeSet $ filter ((== Gray) . color) $ concat previousGuesses
+      yellow = makeSet $ filter (uncurry (&&) . ((== Yellow) . color &&& (`notElem` green))) $ concat previousGuesses
       areAllLettersFound = (not . null) previousGuesses && (length . head) previousGuesses == (length . makeSet . map letter) (green ++ yellow)
-   in (areAllLettersFound && any (\x -> x `notElem` (makeSet . map letter) (green ++ yellow)) word)
-        || any (`elem` (makeSet . map letter) gray) word
-        || any (\x -> (word !! position x) /= letter x) green
-        || any (\x -> letter x `notElem` word) yellow
+  in areAllLettersFound && any (`notElem` (makeSet . map letter) (green ++ yellow)) word ||
+     any (`elem` (makeSet . map letter) gray) word ||
+     any (uncurry (/=) . ((!!) word . position &&& letter)) green ||
+     any ((`notElem` word) . letter) yellow
 
-countRemovedWords :: String -> String -> [Guess] -> [String] -> Int
-countRemovedWords currentWord secretWord previousGuesses =
+countRemovedWords :: String -> GameState -> String -> Int
+countRemovedWords currentWord (previousGuesses, words) secretWord =
   let answer = findColors secretWord currentWord
-   in length . filter (shouldRemoveWord (answer : previousGuesses))
+  in length $ filter (shouldRemoveWord (answer : previousGuesses)) words
 
-sumRemovedWords :: String -> [Guess] -> [String] -> Int
-sumRemovedWords "" _ _ = 0
-sumRemovedWords currentWord previousGuesses words = sum $ map (\w -> countRemovedWords currentWord w previousGuesses words) words
+sumRemovedWords :: String -> GameState -> Int
+sumRemovedWords "" _ = 0
+sumRemovedWords currentWord state@(_, words) = sum $ map (countRemovedWords currentWord state) words
 
 -- the check for empty words is required for other functions
-findBestWord :: [Guess] -> [String] -> String
-findBestWord [] _ = ""
-findBestWord previousGuesses words = maximumBy (\ w1 w2 -> compare (sumRemovedWords w1 previousGuesses words) (sumRemovedWords w1 previousGuesses words)) words
+findBestWord :: GameState -> String
+findBestWord ([], _) = ""
+findBestWord state@(_, words) = maximumBy (\ w1 w2 -> compare (sumRemovedWords w1 state) (sumRemovedWords w1 state)) words
 
-toGuess :: String -> [String] -> Int -> Guess
+toGuess :: String -> Int -> [String] -> Guess
 toGuess [] _ _ = []
-toGuess (x : xs) (y : ys) index = case parseColor y of
-                                  Just color -> (x, color, index) : toGuess xs ys (index + 1)
-                                  Nothing -> error "Invalid color"
+toGuess (x : xs) index (y : ys) =
+  case parseColor y of
+  Just color -> (x, color, index) : toGuess xs (index + 1) ys
+  Nothing -> error "Invalid color"
 
 inputColors :: IO [String]
 inputColors = do
@@ -53,6 +64,44 @@ inputColors = do
   then putStrLn "Unrecognized colors! Try again!" >> inputColors
   else return colorList
 
+updateWordList :: String -> GameState -> [String]
+updateWordList word (guesses, words) = filter (uncurry (&&) . (not . shouldRemoveWord guesses &&& (/= word))) words
+
+updateGameState :: GameState -> Guess -> String -> GameState
+updateGameState (guesses, words) guess word =
+  let updatedGuesses = guess : guesses
+  in (updatedGuesses, updateWordList word (updatedGuesses, words))
+
+updateComplexGameState :: [GameState] -> Guess -> String -> [GameState]
+updateComplexGameState states guess word =
+  let (previousGuesses : restGuesses) = statesGuesses states
+      (previousWords : restWords) = statesWords states
+      previousState = (previousGuesses, previousWords)
+      (newGuesses, newWords) = updateGameState previousState guess word
+      updatedRestGuesses = map (guess:) restGuesses
+      restStates = zip updatedRestGuesses restWords
+  in zip (newGuesses : previousGuesses : updatedRestGuesses)
+         (newWords : filter (/= word) previousWords : map (updateWordList word) restStates)
+
+chooseStartingWord::RandomGen a => [String] -> a -> String
+chooseStartingWord words =
+  let bestWords = filter (uncurry (==) . (length . makeSet &&& length)) words
+  in (bestWords !!) . generateRandomNumber 0 (length bestWords - 1)
+
+playNormalTurn :: GameState -> IO () -> String -> IO ()
+playNormalTurn state start word = do
+  guess <- toGuess word 0 <$> (putStrLn word >> inputColors)
+  if all ((== Green) . color) guess
+    then outputWinMessage "Hooray! I found the word!" start
+    else chooseWordNormal (updateGameState state guess word) start
+
+playHardTurn :: [GameState] -> IO () -> String -> IO ()
+playHardTurn states start word = do
+  guess <- toGuess word 0 <$> (putStrLn word >> inputColors)
+  if all ((== Green) . color) guess
+  then outputWinMessage "Hooray! I found the word!" start
+  else chooseWordHard (updateComplexGameState states guess word) start
+
 {--
 - The first word is always random word with all different letters (or else the first word will always be the same which is boring)
 - After every word asks for colors
@@ -61,66 +110,24 @@ inputColors = do
     - if all the input colors are green then the secret word is found
     - else chooses the best word, filters the wordlist and goes over again
 --}
-chooseWordNormal :: [Guess] -> [String] -> IO () -> IO ()
-chooseWordNormal [] words start = do
-  generator <- newStdGen
-  let wordsWithDifferentLetters = filter (\x -> length (makeSet x) == length x) words
-      word = wordsWithDifferentLetters !! generateRandomNumber generator 0 (length wordsWithDifferentLetters - 1)
-  colorList <- putStrLn word >> inputColors
-  let guess = toGuess word colorList 0
-  if all (\x -> color x == Green) guess
-    then outputWinMessage "Hooray! I found the word!" start
-    else chooseWordNormal [guess] (filter (\x -> not (shouldRemoveWord [guess] x) && x /= word) words) start
-
-chooseWordNormal _ [] _ = putStrLn "Your word is not part of the word list! Ending current session!"
-
-chooseWordNormal previousGuesses words start = do
-  let word = findBestWord previousGuesses words
-  colorList <- putStrLn word >> inputColors
-  let guess = toGuess word colorList 0
-  if all (\x -> color x == Green) guess
-    then outputWinMessage "Hooray! I found the word!" start
-    else chooseWordNormal (guess : previousGuesses) (filter (\x -> not (shouldRemoveWord (guess : previousGuesses) x) && x /= word) words) start
+chooseWordNormal :: GameState -> IO () -> IO ()
+chooseWordNormal state@([], words) start = newStdGen >>= playNormalTurn state start . chooseStartingWord words
+chooseWordNormal (_, []) _ = putStrLn "Your word is not part of the word list! Ending current session!"
+chooseWordNormal state start = playNormalTurn state start $ findBestWord state
 
 {- 
-- chooseWordHard saves states of all guesses and available words for every guess where each state assumes that at some point the user lied (+ 1 state that
-  assumes that the user hasn't lied yet)
-- the heads of previousGuesses and listsOfWords represent the state where the function assumes that the user hasn't lied yet
-- the second element is the state where the function assumes that the user lied about the current guess
+- chooseWordHard saves states of all guesses and available words for every guess where each state assumes that at some point the user lied 
+  (+ 1 state that assumes that the user hasn't lied yet)
+- the first state represents the state where the function assumes that the user hasn't lied yet
+- the second state is the state where the function assumes that the user lied about the current guess
 - the rest states assume that the user has lied already 
 -}
-chooseWordHard :: [[Guess]] -> [[String]] -> IO () -> IO ()
-chooseWordHard [] listsOfWords start = do
-  generator <- newStdGen
-  let wordsWithDifferentLetters = filter (\x -> length (makeSet x) == length x) $ head listsOfWords
-      word = wordsWithDifferentLetters !! generateRandomNumber generator 0 (length wordsWithDifferentLetters - 1)
-  colorList <- putStrLn word >> inputColors
-  let guess = toGuess word colorList 0
-  if all (\x -> color x == Green) guess
-    then outputWinMessage "Hooray! I found the word!" start
-    else chooseWordHard [[guess], []] (filter (\x -> not (shouldRemoveWord [guess] x) && x /= word) (head listsOfWords) : listsOfWords) start
-
-{-
-- the best word for every turn is calculate the same way like in the normal mode, but it is chosen from
-  the best words of every state
--}
-chooseWordHard previousGuesses listsOfWords start = do
-  if all null listsOfWords
-    then putStrLn "Your word is not part of the word list! Ending current session!"
-    else do
-      let states = zip previousGuesses listsOfWords
-          words = map (uncurry findBestWord) $ filter (not . null . fst) states
-          bestWord = maximumBy (\w1 w2 -> compare (sum $ map (uncurry $ sumRemovedWords w1) states)
-                                                  (sum $ map (uncurry $ sumRemovedWords w2) states))
-                     $ filter (not. null) words
-      colorList <- putStrLn bestWord >> inputColors
-      let guess = toGuess bestWord colorList 0
-      if all (\x -> color x == Green) guess
-        then outputWinMessage "Hooray! I found the word!" start
-        else chooseWordHard ((guess:head previousGuesses) :
-                              head previousGuesses :
-                              map (guess:) (tail previousGuesses))
-                            (filter (\x -> not (shouldRemoveWord (guess:head previousGuesses) x) && x /= bestWord) (head listsOfWords) :
-                             filter (/= bestWord) (head listsOfWords) :
-                             map (\(guesses, wordList) -> filter (\w -> not (shouldRemoveWord (guess:guesses) w) && w /= bestWord) wordList) (tail states))
-                             start
+chooseWordHard :: [GameState] -> IO () -> IO ()
+chooseWordHard states start
+  | all null $ statesGuesses states = newStdGen >>= playHardTurn states start . chooseStartingWord (head $ statesWords states)
+  | all null $ statesWords states = putStrLn "Your word is not part of the word list! Ending current session!"
+  | otherwise = do
+      let words = filter (not . null) $ map findBestWord $ filter (not . null . snd) states
+          bestWord = maximumBy (\w1 w2 -> compare (sum $ map (sumRemovedWords w1) states) 
+                                                  (sum $ map (sumRemovedWords w2) states)) words
+      playHardTurn states start bestWord

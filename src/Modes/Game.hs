@@ -19,8 +19,7 @@ validateWord guess previousGuesses = do
     (any (`notElem` guess) $ makeSet $ filter ((== Green) . color) allGuesses) $
     putStrLn "Your guess has non green letter in a position, where a green letter was found"
   where checkIfLetterIsFoundAsGreen :: Char -> Bool
-        checkIfLetterIsFoundAsGreen letter = all (\x -> (letter, Green, x) `notElem` allGuesses) [1 .. (length guess - 1)]
-        allGuesses :: [LetterInfo]
+        checkIfLetterIsFoundAsGreen letter = all ((`notElem` allGuesses) . (,,) letter Green) [1 .. (length guess - 1)]
         allGuesses = concat previousGuesses
 
 checkWordLength :: String -> String -> IO () -> IO ()
@@ -33,8 +32,7 @@ checkIfWordExists guess words =
 
 askForWordEasy :: String -> [Guess] -> [String] -> IO () -> IO ()
 askForWordEasy secretWord previousGuesses words start = do
-  putStr "Enter your guess: "
-  guess <- getLine
+  guess <- putStr "Enter your guess: " >> getLine
   checkWordLength guess secretWord (askForWordEasy secretWord previousGuesses words start)
   if guess == secretWord
     then outputWinMessage "Congratulations! You guessed the word!" start
@@ -60,12 +58,11 @@ askForWordHard :: String -> [Guess] -> Bool -> [String] -> IO () -> IO ()
 askForWordHard secretWord previousGuesses hasLied words start = do
   guess <- putStr "Enter your guess: " >> getLine
   checkWordLength guess secretWord (askForWordHard secretWord previousGuesses hasLied words start)
-  generator <- newStdGen
   if guess == secretWord
     then outputWinMessage "Congratulations! You guessed the word!" start
     else do
       checkIfWordExists guess words (askForWordHard secretWord previousGuesses hasLied words start)
-      let willLie = not hasLied && 20 >= generateRandomNumber generator 0 100
+      willLie <- (not hasLied &&) . (20 >=) . generateRandomNumber 0 100 <$> newStdGen
       if willLie
         then do
           newStdGen >>= print . map color . findWrongColors secretWord guess previousGuesses
