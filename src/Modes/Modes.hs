@@ -1,9 +1,12 @@
 module Modes.Modes where
 
 import System.Random (newStdGen)
-import Modes.Game (askForWordEasy, askForWordNormal, askForWordHard)
-import Modes.Helper (chooseWordNormal, chooseWordHard)
 import Utils (stringToInt, generateRandomNumber)
+import Modes.Helper.Normal (chooseWordNormal)
+import Modes.Helper.Hard (chooseWordHard)
+import Modes.Game.Easy (askForWordEasy)
+import Modes.Game.Normal (askForWordNormal)
+import Modes.Game.Hard (askForWordHard)
 
 chooseGameMode :: String -> String -> IO () -> IO ()
 chooseGameMode contents "game" start = do
@@ -16,9 +19,9 @@ chooseGameMode contents "game" start = do
           wordCount = length wordList
       secretWord <- (wordList !!) . generateRandomNumber 0 (wordCount - 1) <$> newStdGen
       case difficulty of
-        "easy" -> askForWordEasy secretWord [] wordList start
+        "easy" -> askForWordEasy secretWord wordList start []
         "normal" -> askForWordNormal secretWord wordList start
-        "hard" -> askForWordHard secretWord [] False wordList start
+        "hard" -> askForWordHard secretWord wordList start [] False
 
 chooseGameMode contents "helper" start = do
   difficulty <- putStr "Choose difficulty level (normal, hard): " >> getLine
