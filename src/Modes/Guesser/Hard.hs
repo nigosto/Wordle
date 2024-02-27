@@ -10,6 +10,7 @@ import Modes.Guesser.State
 import Colors.Common (Color(Green))
 import System.Random (newStdGen)
 import Data.List (maximumBy)
+import Control.Parallel.Strategies (parList, using, rdeepseq)
 
 updateComplexGameState :: [GameState] -> Guess -> String -> [GameState]
 updateComplexGameState states guess word =
@@ -20,7 +21,7 @@ updateComplexGameState states guess word =
       updatedRestGuesses = map (guess:) restGuesses
       restStates = zip updatedRestGuesses restWords
   in zip (newGuesses : previousGuesses : updatedRestGuesses)
-         (newWords : filter (/= word) previousWords : map (updateWordList word) restStates)
+         (newWords : filter (/= word) previousWords : map (updateWordList word) restStates `using` parList rdeepseq)
 
 playHardTurn :: [GameState] -> IO () -> String -> IO ()
 playHardTurn states start word = do
