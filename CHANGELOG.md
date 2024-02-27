@@ -7,3 +7,7 @@
 ## 0.1.1.0 -- 2024-02-17
 
 * First minor version. Allowed passing custom word list.
+
+## 1.0.0.0 -- 2024-02-27
+
+* First official release.
