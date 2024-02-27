@@ -1,5 +1,5 @@
 # Wordle
-Console app written in Haskell that simulates the famous game Wordle and extending it with different game modes.
+Console app written in Haskell that simulates the famous game Wordle and extends it with different game modes.
 
 ## Table of contents
 - [Prerequisites](#prerequisites)

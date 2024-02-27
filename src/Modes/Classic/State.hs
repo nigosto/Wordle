@@ -1,4 +1,4 @@
-module Modes.Game.State where
+module Modes.Classic.State where
 
 import Control.Monad (when, unless)
 import Modes.Common (outputWinMessage, color)
@@ -7,6 +7,9 @@ import Colors.Colors (findColors)
 
 type GameState = (String, [String], IO ())
 type Message = String
+
+secretWord :: GameState -> String
+secretWord (word, _, _) = word
 
 wordIsCorrectLength :: String -> String -> Maybe Message
 wordIsCorrectLength guess secretWord
@@ -22,8 +25,8 @@ showErrorMessage :: Maybe Message -> IO () -> IO () -> IO ()
 showErrorMessage Nothing _ action = action
 showErrorMessage (Just message) next _ = putStrLn message >> next
 
-playTurn :: String -> [String] -> IO () -> IO () -> (String -> IO ()) -> IO ()
-playTurn secretWord words start next action =
+playTurn :: GameState -> IO () -> (String -> IO ()) -> IO ()
+playTurn (secretWord, words, start) next action =
   putStr "Enter your guess: " >> getLine >>= \guess ->
   showErrorMessage (wordIsCorrectLength guess secretWord) next $
     if guess == secretWord

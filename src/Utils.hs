@@ -1,15 +1,23 @@
 module Utils where
 
 import System.Random (RandomGen, Random (randomR))
+import Data.Char (isDigit)
+import Data.Maybe (isNothing)
+import Control.Applicative (Applicative(liftA2))
 
 makeSet :: Eq a => [a] -> [a]
 makeSet = foldl (\res h -> if h `elem` res then res else res ++ [h]) []
 
-digitToInt :: Char -> Int
-digitToInt digit = toEnum $ fromEnum digit - fromEnum '0'
+digitToInt :: Char -> Maybe Int
+digitToInt digit
+  | isDigit digit = Just $ toEnum $ fromEnum digit - fromEnum '0'
+  | otherwise = Nothing
 
-stringToInt :: String -> Int
-stringToInt = foldl ((+) . (*10)) 0 . map digitToInt
+stringToInt :: String -> Maybe Int
+stringToInt string
+  | any isNothing converted = Nothing
+  | otherwise = foldl (liftA2 (+) . (<$>) (*10)) (Just 0) converted
+  where converted = map digitToInt string
 
 elemIndex :: Eq t => t -> [t] -> Maybe Int
 elemIndex e list = elemIndexIter e list 0

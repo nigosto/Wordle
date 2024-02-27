@@ -1,4 +1,4 @@
-module Modes.Helper.State where
+module Modes.Guesser.State where
 
 import Modes.Common (Guess, letter, color, position)
 import Utils (makeSet, generateRandomNumber)

@@ -1,7 +1,7 @@
-module Modes.Helper.Hard where
+module Modes.Guesser.Hard where
 
 import Modes.Common (Guess, color, outputWinMessage)
-import Modes.Helper.State
+import Modes.Guesser.State
     ( statesGuesses,
       statesWords,
       updateGameState,
@@ -33,8 +33,8 @@ chooseWordHard :: [GameState] -> IO () -> IO ()
 chooseWordHard states start
   | all null $ statesGuesses states = newStdGen >>= playHardTurn states start . chooseStartingWord (head $ statesWords states)
   | all null $ statesWords states = putStrLn "Your word is not part of the word list! Ending current session!"
-  | otherwise = do
+  | otherwise =
       let words = filter (not . null) $ map findBestWord $ filter (not . null . snd) states
           bestWord = maximumBy (\w1 w2 -> compare (sum $ map (sumRemovedWords w1) states)
                                                   (sum $ map (sumRemovedWords w2) states)) words
-      playHardTurn states start bestWord
+      in playHardTurn states start bestWord

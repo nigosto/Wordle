@@ -28,15 +28,16 @@ executable wordle
 
     other-modules: 
         Utils,
-        Modes.Modes,
-        Modes.Game.State,
-        Modes.Game.Easy,
-        Modes.Game.Normal,
-        Modes.Game.Hard,
-        Modes.Helper.State,
-        Modes.Helper.Normal,
-        Modes.Helper.Hard,
         Modes.Common,
+        Modes.Difficulties,
+        Modes.Modes,
+        Modes.Classic.State,
+        Modes.Classic.Easy,
+        Modes.Classic.Normal,
+        Modes.Classic.Hard,
+        Modes.Guesser.State,
+        Modes.Guesser.Normal,
+        Modes.Guesser.Hard,
         Colors.Colors,
         Colors.Common
 
